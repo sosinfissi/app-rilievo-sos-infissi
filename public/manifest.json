@@ -1,15 +1,8 @@
 {
-  "name": "SOS INFISSI - Commessa Rilievo",
-  "short_name": "SOS Rilievi",
+  "name": "SOS INFISSI PRO",
+  "short_name": "SOS PRO",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#9b0000",
-  "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml"
-    }
-  ]
+  "theme_color": "#061a33"
 }

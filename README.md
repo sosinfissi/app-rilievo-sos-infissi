@@ -1,8 +1,11 @@
-# SOS INFISSI - Commessa Rilievo Misure
+# SOS INFISSI PRO APP
 
-Versione 2:
-- 1 cliente = 1 commessa
-- più prodotti nella stessa commessa
-- finestre, persiane, tapparelle, blindati, porte interne, sezionali
-- stampa/PDF unico
-- salvataggio locale sul dispositivo
+Versione PRO con:
+- Dashboard riepilogativa
+- Menu laterale
+- Commesse recenti
+- Gestione cliente/commessa
+- Più prodotti nella stessa commessa
+- Report A4 professionale
+- Stampa / PDF unico
+- Logo incorporato nel codice
