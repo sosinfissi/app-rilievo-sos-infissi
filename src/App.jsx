@@ -157,7 +157,7 @@ export default function App() {
     <div className="app">
       <div className="toolbar no-print">
         <div className="brand">
-          <strong>SOS INFISSI APP</strong>
+          <strong>SOS INFISSI GESTIONALE</strong>
           <span>1 cliente = 1 commessa con più prodotti</span>
         </div>
 
