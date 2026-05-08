@@ -1,11 +1,3 @@
-# SOS INFISSI PRO APP
+# SOS INFISSI CLOUD OPERATIVO
 
-Versione PRO con:
-- Dashboard riepilogativa
-- Menu laterale
-- Commesse recenti
-- Gestione cliente/commessa
-- Più prodotti nella stessa commessa
-- Report A4 professionale
-- Stampa / PDF unico
-- Logo incorporato nel codice
+Aree operative: clienti, commesse, prodotti, calendario, rapportini, archivio, report.

@@ -1,7 +1,7 @@
 {
-  "name": "sos-infissi-pro-app",
+  "name": "sos-infissi-cloud-operativo",
   "private": true,
-  "version": "3.0.0",
+  "version": "4.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,8 @@
     "vite": "^5.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "lucide-react": "^0.468.0"
+    "lucide-react": "^0.468.0",
+    "@supabase/supabase-js": "^2.48.1"
   },
   "devDependencies": {}
 }
