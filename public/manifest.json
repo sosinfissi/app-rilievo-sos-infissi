@@ -1,6 +1,6 @@
 {
-  "name": "SOS INFISSI - Rilievo Misure",
-  "short_name": "SOS INFISSI",
+  "name": "SOS INFISSI - Commessa Rilievo",
+  "short_name": "SOS Rilievi",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -1,15 +1,8 @@
-# SOS INFISSI - Rilievo Misure
+# SOS INFISSI - Commessa Rilievo Misure
 
-App PWA per rilievo misure:
-- Finestre
-- Persiane
-- Tapparelle
-- Portoni blindati
-- Porte interne
-- Porte sezionali
-
-## Uso
-1. Carica tutto su GitHub
-2. Importa il repository su Vercel
-3. Premi Deploy
-4. Apri il link da telefono e aggiungi alla schermata Home
+Versione 2:
+- 1 cliente = 1 commessa
+- più prodotti nella stessa commessa
+- finestre, persiane, tapparelle, blindati, porte interne, sezionali
+- stampa/PDF unico
+- salvataggio locale sul dispositivo
