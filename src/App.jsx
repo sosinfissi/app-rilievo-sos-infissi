@@ -172,7 +172,7 @@ export default function App() {
       </div>
 
       <main className="sheet cover">
-        <header className="header"><img src="/logo-sos.png" className="logo small" alt="SOS INFISSI" /><img src="/logo-sos.png" className="logo" alt="SOS INFISSI" />
+        <header className="header">
           <h1>SOS INFISSI</h1>
           <h2>COMMESSA RILIEVO MISURE</h2>
           <p>Gli esperti della rimozione del vecchio telaio</p>
@@ -258,7 +258,7 @@ function ProductSheet({ section, index, job, onUpdate, onRemove, onDuplicate }) 
         <button className="danger" onClick={onRemove}>Elimina sezione</button>
       </div>
 
-      <header className="header"><img src="/logo-sos.png" className="logo small" alt="SOS INFISSI" />
+      <header className="header">
         <h1>SOS INFISSI</h1>
         <h2>MODELLO RILIEVO MISURE - {product.title}</h2>
         <p>Gli esperti della rimozione del vecchio telaio</p>

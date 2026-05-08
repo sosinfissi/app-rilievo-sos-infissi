@@ -1,18 +1,4 @@
 
-.logo {
-  width: 95px;
-  height: 95px;
-  object-fit: contain;
-  display: block;
-  margin: 0 auto 6px;
-}
-
-.logo.small {
-  width: 72px;
-  height: 72px;
-}
-
-
 * { box-sizing: border-box; }
 
 body {
