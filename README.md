@@ -1,3 +1,3 @@
-# SOS INFISSI CLOUD OPERATIVO
+# SOS INFISSI Sync Clienti e Commesse
 
-Aree operative: clienti, commesse, prodotti, calendario, rapportini, archivio, report.
+Build rapida: sincronizzazione Supabase reale per Clienti e Commesse.

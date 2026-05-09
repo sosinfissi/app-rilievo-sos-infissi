@@ -1,44 +1,132 @@
 
-import React, { useEffect, useState } from 'react'
-import { LOGO_DATA } from './logoData'
+import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
-import { Home, FolderOpen, Users, Boxes, Archive, CalendarDays, Settings, Plus, FileText, Search, Save, Trash2, RefreshCw, ClipboardList, Printer } from 'lucide-react'
+import { LOGO_DATA } from './logoData'
+import { Home, FolderOpen, Users, Archive, Printer, Search, Save, Trash2, RefreshCw, Plus, CheckCircle2, AlertTriangle } from 'lucide-react'
 
-const productTypes={finestre:'FINESTRE',persiane:'PERSIANE',tapparelle:'TAPPARELLE',blindati:'PORTONI BLINDATI',interne:'PORTE INTERNE',sezionali:'PORTE SEZIONALI'}
-const emptyCliente={nome:'',cognome:'',telefono:'',email:'',indirizzo:'',citta:'',note:''}
-const emptyCommessa={titolo:'',stato:'in lavorazione',data_sopralluogo:'',tecnico:'',note:''}
-const emptyProdotto={categoria:'finestre',larghezza:'',altezza:'',colore:'',vetro:'',apertura:'',note:''}
-const emptyApp={cliente:'',telefono:'',data_appuntamento:'',indirizzo:'',note:'',stato:'programmato'}
-const emptyRap={utente:'',titolo:'',descrizione:'',data_rapportino:new Date().toISOString().slice(0,10)}
-const lg=(k,f=[])=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(f))}catch{return f}}
-const ls=(k,v)=>localStorage.setItem(k,JSON.stringify(v))
-const contains=(o,q)=>!q||JSON.stringify(o).toLowerCase().includes(q.toLowerCase())
+const emptyCliente = { nome:'', cognome:'', telefono:'', email:'', indirizzo:'', citta:'', note:'' }
+const emptyCommessa = { cliente_id:'', titolo:'', stato:'in lavorazione', data_sopralluogo:'', tecnico:'', note:'' }
 
 export default function App(){
- const [view,setView]=useState('dashboard'),[query,setQuery]=useState('')
- const [clienti,setClienti]=useState(lg('clienti')),[commesse,setCommesse]=useState(lg('commesse')),[prodotti,setProdotti]=useState(lg('prodotti')),[appuntamenti,setAppuntamenti]=useState(lg('appuntamenti')),[rapportini,setRapportini]=useState(lg('rapportini'))
- const [loading,setLoading]=useState(false),[status,setStatus]=useState(supabase?'Cloud pronto':'Cloud non configurato')
- async function refreshAll(){ if(!supabase)return; setLoading(true); try{ const [c,co,p,a,r]=await Promise.all([supabase.from('clienti').select('*').order('created_at',{ascending:false}),supabase.from('commesse').select('*').order('created_at',{ascending:false}),supabase.from('prodotti_commessa').select('*').order('created_at',{ascending:false}),supabase.from('appuntamenti').select('*').order('created_at',{ascending:false}),supabase.from('rapportini').select('*').order('created_at',{ascending:false})]); const err=c.error||co.error||p.error||a.error||r.error; if(err)throw err; setClienti(c.data||[]);ls('clienti',c.data||[]);setCommesse(co.data||[]);ls('commesse',co.data||[]);setProdotti(p.data||[]);ls('prodotti',p.data||[]);setAppuntamenti(a.data||[]);ls('appuntamenti',a.data||[]);setRapportini(r.data||[]);ls('rapportini',r.data||[]);setStatus('Cloud sincronizzato')}catch(e){setStatus('Errore cloud: '+e.message)} setLoading(false)}
- useEffect(()=>{refreshAll()},[])
- async function insert(table,data,setter,key){ const clean=Object.fromEntries(Object.entries(data).filter(([_,v])=>v!=='')); if(supabase){const {data:saved,error}=await supabase.from(table).insert(clean).select().single(); if(error){alert('Errore cloud: '+error.message);return} setter(prev=>{const n=[saved,...prev];ls(key,n);return n});setStatus('Salvato in cloud')}else{const saved={id:Date.now(),...clean,created_at:new Date().toISOString()}; setter(prev=>{const n=[saved,...prev];ls(key,n);return n})}}
- async function remove(table,id,setter,key){ if(!confirm('Eliminare?'))return; if(supabase){const {error}=await supabase.from(table).delete().eq('id',id); if(error){alert('Errore: '+error.message);return}} setter(prev=>{const n=prev.filter(x=>x.id!==id);ls(key,n);return n})}
- const props={query,setQuery,insert,remove,clienti,commesse,prodotti,appuntamenti,rapportini,setClienti,setCommesse,setProdotti,setAppuntamenti,setRapportini}
- return <div className="app-shell"><Sidebar view={view} setView={setView}/><main className="workarea"><Top status={status} loading={loading} refreshAll={refreshAll}/>{view==='dashboard'&&<Dashboard {...props} setView={setView}/>} {view==='clienti'&&<Clienti {...props}/>} {view==='commesse'&&<Commesse {...props}/>} {view==='prodotti'&&<Prodotti {...props}/>} {view==='calendario'&&<Calendario {...props}/>} {view==='rapportini'&&<Rapportini {...props}/>} {view==='archivio'&&<Archivio {...props}/>} {view==='stampa'&&<Report {...props}/>} {view==='impostazioni'&&<Section title="Impostazioni"><div className="panel"><h2>Stato cloud</h2><p>{status}</p><p>Prossimo step: login utenti e ruoli per Alessandro, socio e segretaria.</p></div></Section>}</main></div>
+  const [view,setView]=useState('dashboard')
+  const [clienti,setClienti]=useState([])
+  const [commesse,setCommesse]=useState([])
+  const [clienteForm,setClienteForm]=useState(emptyCliente)
+  const [commessaForm,setCommessaForm]=useState(emptyCommessa)
+  const [query,setQuery]=useState('')
+  const [loading,setLoading]=useState(false)
+  const [status,setStatus]=useState(supabase?'Cloud pronto':'Cloud non configurato')
+  const [last,setLast]=useState('')
+
+  async function sync(){
+    if(!supabase){setStatus('Cloud non configurato'); return}
+    setLoading(true)
+    const cr = await supabase.from('clienti').select('*').order('created_at',{ascending:false})
+    const mr = await supabase.from('commesse').select('*').order('created_at',{ascending:false})
+    if(cr.error || mr.error){
+      setStatus('Errore cloud: ' + (cr.error?.message || mr.error?.message))
+      setLoading(false); return
+    }
+    setClienti(cr.data||[])
+    setCommesse(mr.data||[])
+    setLast(new Date().toLocaleTimeString('it-IT'))
+    setStatus('Cloud sincronizzato')
+    setLoading(false)
+  }
+
+  useEffect(()=>{
+    sync()
+    if(!supabase) return
+    const ch = supabase.channel('sos-realtime')
+      .on('postgres_changes',{event:'*',schema:'public',table:'clienti'},sync)
+      .on('postgres_changes',{event:'*',schema:'public',table:'commesse'},sync)
+      .subscribe()
+    return ()=>supabase.removeChannel(ch)
+  },[])
+
+  async function salvaCliente(){
+    if(!clienteForm.nome && !clienteForm.telefono){alert('Inserisci almeno nome o telefono'); return}
+    const {error}=await supabase.from('clienti').insert({
+      nome:clienteForm.nome||null, cognome:clienteForm.cognome||null, telefono:clienteForm.telefono||null,
+      email:clienteForm.email||null, indirizzo:clienteForm.indirizzo||null, citta:clienteForm.citta||null, note:clienteForm.note||null
+    })
+    if(error){alert('Errore cliente: '+error.message); return}
+    setClienteForm(emptyCliente); await sync(); setView('clienti')
+  }
+
+  async function salvaCommessa(){
+    if(!commessaForm.titolo){alert('Inserisci titolo commessa'); return}
+    const {error}=await supabase.from('commesse').insert({
+      cliente_id:commessaForm.cliente_id?Number(commessaForm.cliente_id):null,
+      titolo:commessaForm.titolo, stato:commessaForm.stato, data_sopralluogo:commessaForm.data_sopralluogo||null,
+      tecnico:commessaForm.tecnico||null, note:commessaForm.note||null
+    })
+    if(error){alert('Errore commessa: '+error.message); return}
+    setCommessaForm(emptyCommessa); await sync(); setView('commesse')
+  }
+
+  async function delCliente(id){ if(!confirm('Eliminare cliente?'))return; const {error}=await supabase.from('clienti').delete().eq('id',id); if(error)alert(error.message); await sync() }
+  async function delCommessa(id){ if(!confirm('Eliminare commessa?'))return; const {error}=await supabase.from('commesse').delete().eq('id',id); if(error)alert(error.message); await sync() }
+
+  const filteredClienti = useMemo(()=>clienti.filter(x=>JSON.stringify(x).toLowerCase().includes(query.toLowerCase())),[clienti,query])
+  const filteredCommesse = useMemo(()=>commesse.filter(x=>JSON.stringify(x).toLowerCase().includes(query.toLowerCase())),[commesse,query])
+  const nomeCliente = id => {
+    const c = clienti.find(x=>String(x.id)===String(id))
+    return c ? `${c.nome||''} ${c.cognome||''}`.trim() : 'Non collegato'
+  }
+
+  return <div className="app">
+    <aside className="side no-print">
+      <div className="logo">{LOGO_DATA && <img src={LOGO_DATA}/>}</div>
+      <button className={view==='dashboard'?'on':''} onClick={()=>setView('dashboard')}><Home/>Dashboard</button>
+      <button className={view==='commesse'?'on':''} onClick={()=>setView('commesse')}><FolderOpen/>Commesse</button>
+      <button className={view==='clienti'?'on':''} onClick={()=>setView('clienti')}><Users/>Clienti</button>
+      <button className={view==='archivio'?'on':''} onClick={()=>setView('archivio')}><Archive/>Archivio</button>
+      <button className={view==='stampa'?'on':''} onClick={()=>setView('stampa')}><Printer/>Stampa/PDF</button>
+    </aside>
+    <main className="main">
+      <header className="top no-print">
+        <div><h1>SOS INFISSI CLOUD</h1><p className={status.includes('Errore')?'bad':'ok'}>{status.includes('Errore')?<AlertTriangle/>:<CheckCircle2/>}{status}{last&&` — ultimo sync ${last}`}</p></div>
+        <button onClick={sync}><RefreshCw/>{loading?'Sincronizzo...':'Sincronizza'}</button>
+      </header>
+      {view==='dashboard' && <Dashboard clienti={clienti} commesse={commesse} setView={setView}/>}
+      {view==='clienti' && <Clienti form={clienteForm} setForm={setClienteForm} clienti={filteredClienti} save={salvaCliente} del={delCliente} query={query} setQuery={setQuery}/>}
+      {view==='commesse' && <Commesse form={commessaForm} setForm={setCommessaForm} clienti={clienti} commesse={filteredCommesse} save={salvaCommessa} del={delCommessa} nomeCliente={nomeCliente} query={query} setQuery={setQuery}/>}
+      {view==='archivio' && <Archivio clienti={clienti} commesse={commesse} nomeCliente={nomeCliente}/>}
+      {view==='stampa' && <Report clienti={clienti} commesse={commesse} nomeCliente={nomeCliente}/>}
+    </main>
+  </div>
 }
-function Sidebar({view,setView}){const items=[['dashboard','Dashboard',Home],['commesse','Commesse',FolderOpen],['clienti','Clienti',Users],['prodotti','Prodotti',Boxes],['calendario','Calendario',CalendarDays],['rapportini','Rapportini',ClipboardList],['archivio','Archivio',Archive],['stampa','Stampa/PDF',Printer],['impostazioni','Impostazioni',Settings]];return <aside className="sidebar no-print"><div className="side-logo">{LOGO_DATA&&<img src={LOGO_DATA}/>}</div><nav>{items.map(([k,l,I])=><button key={k} className={view===k?'active':''} onClick={()=>setView(k)}><I size={18}/><span>{l}</span></button>)}</nav></aside>}
-function Top({status,loading,refreshAll}){return <header className="topbar no-print"><div><h1>SOS INFISSI CLOUD</h1><p>{status}</p></div><button onClick={refreshAll}><RefreshCw size={16}/>{loading?'Carico...':'Sincronizza'}</button></header>}
-function Dashboard({clienti,commesse,prodotti,rapportini,setView,query,setQuery}){return <><div className="stat-grid"><Stat v={commesse.length} l="Commesse"/><Stat v={clienti.length} l="Clienti"/><Stat v={prodotti.length} l="Prodotti"/><Stat v={rapportini.length} l="Rapportini"/></div><div className="panel"><h2>Azioni rapide</h2><div className="quick-grid"><button className="quick red" onClick={()=>setView('commesse')}><Plus/>Nuova commessa</button><button className="quick navy" onClick={()=>setView('clienti')}><Plus/>Aggiungi cliente</button><button className="quick red" onClick={()=>setView('prodotti')}><Plus/>Aggiungi prodotto</button><button className="quick navy" onClick={()=>setView('rapportini')}><ClipboardList/>Rapportino</button></div></div><div className="panel"><div className="panel-head"><h2>Commesse recenti</h2><SearchBox query={query} setQuery={setQuery}/></div><Table h={['Titolo','Stato','Tecnico','Data']} r={commesse.filter(x=>contains(x,query)).map(x=>[x.titolo,x.stato,x.tecnico,x.data_sopralluogo])}/></div></>}
-function Stat({v,l}){return <div className="stat"><FileText/><b>{v}</b><strong>{l}</strong></div>}
-function Section({title,children}){return <section className="section"><h1>{title}</h1>{children}</section>}
-function SearchBox({query,setQuery}){return <div className="search"><Search size={16}/><input placeholder="Cerca..." value={query} onChange={e=>setQuery(e.target.value)}/></div>}
-function Form({children}){return <div className="form-grid">{children}</div>}
-const inp=(label,k,f,setF,type='text')=><input type={type} placeholder={label} value={f[k]||''} onChange={e=>setF({...f,[k]:e.target.value})}/>
-function Clienti(p){const [f,setF]=useState(emptyCliente);return <Section title="Clienti"><Form>{inp('Nome','nome',f,setF)}{inp('Cognome','cognome',f,setF)}{inp('Telefono','telefono',f,setF)}{inp('Email','email',f,setF)}{inp('Indirizzo','indirizzo',f,setF)}{inp('Città','citta',f,setF)}<textarea placeholder="Note" value={f.note} onChange={e=>setF({...f,note:e.target.value})}/></Form><button className="save" onClick={()=>{p.insert('clienti',f,p.setClienti,'clienti');setF(emptyCliente)}}><Save size={16}/>Salva cliente</button><Panel title="Elenco clienti" query={p.query} setQuery={p.setQuery}/><Table h={['Nome','Telefono','Email','Indirizzo','']} r={p.clienti.filter(x=>contains(x,p.query)).map(c=>[`${c.nome||''} ${c.cognome||''}`,c.telefono,c.email,`${c.indirizzo||''} ${c.citta||''}`,<button className="danger" onClick={()=>p.remove('clienti',c.id,p.setClienti,'clienti')}><Trash2 size={14}/></button>])}/></Section>}
-function Commesse(p){const [f,setF]=useState(emptyCommessa);return <Section title="Commesse"><Form><select value={f.cliente_id||''} onChange={e=>setF({...f,cliente_id:e.target.value})}><option value="">Cliente collegato</option>{p.clienti.map(c=><option key={c.id} value={c.id}>{c.nome} {c.cognome}</option>)}</select>{inp('Titolo commessa','titolo',f,setF)}<select value={f.stato} onChange={e=>setF({...f,stato:e.target.value})}><option>in lavorazione</option><option>da preventivare</option><option>completata</option><option>sospesa</option></select>{inp('Data sopralluogo','data_sopralluogo',f,setF,'date')}{inp('Tecnico','tecnico',f,setF)}<textarea placeholder="Note" value={f.note} onChange={e=>setF({...f,note:e.target.value})}/></Form><button className="save" onClick={()=>{p.insert('commesse',f,p.setCommesse,'commesse');setF(emptyCommessa)}}><Save size={16}/>Salva commessa</button><Panel title="Elenco commesse" query={p.query} setQuery={p.setQuery}/><Table h={['Titolo','Stato','Tecnico','Data','']} r={p.commesse.filter(x=>contains(x,p.query)).map(c=>[c.titolo,c.stato,c.tecnico,c.data_sopralluogo,<button className="danger" onClick={()=>p.remove('commesse',c.id,p.setCommesse,'commesse')}><Trash2 size={14}/></button>])}/></Section>}
-function Prodotti(p){const [f,setF]=useState(emptyProdotto);return <Section title="Prodotti / rilievi"><Form><select value={f.commessa_id||''} onChange={e=>setF({...f,commessa_id:e.target.value})}><option value="">Commessa collegata</option>{p.commesse.map(c=><option key={c.id} value={c.id}>{c.titolo}</option>)}</select><select value={f.categoria} onChange={e=>setF({...f,categoria:e.target.value})}>{Object.entries(productTypes).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>{inp('Larghezza','larghezza',f,setF)}{inp('Altezza','altezza',f,setF)}{inp('Colore','colore',f,setF)}{inp('Vetro','vetro',f,setF)}{inp('Apertura','apertura',f,setF)}<textarea placeholder="Note" value={f.note} onChange={e=>setF({...f,note:e.target.value})}/></Form><button className="save" onClick={()=>{p.insert('prodotti_commessa',f,p.setProdotti,'prodotti');setF(emptyProdotto)}}><Save size={16}/>Salva prodotto</button><Panel title="Elenco prodotti" query={p.query} setQuery={p.setQuery}/><Table h={['Categoria','L','H','Colore','Note','']} r={p.prodotti.filter(x=>contains(x,p.query)).map(pr=>[productTypes[pr.categoria]||pr.categoria,pr.larghezza,pr.altezza,pr.colore,pr.note,<button className="danger" onClick={()=>p.remove('prodotti_commessa',pr.id,p.setProdotti,'prodotti')}><Trash2 size={14}/></button>])}/></Section>}
-function Calendario(p){const [f,setF]=useState(emptyApp);return <Section title="Calendario appuntamenti"><Form>{inp('Cliente','cliente',f,setF)}{inp('Telefono','telefono',f,setF)}{inp('Data e ora','data_appuntamento',f,setF,'datetime-local')}{inp('Indirizzo','indirizzo',f,setF)}{inp('Stato','stato',f,setF)}<textarea placeholder="Note" value={f.note} onChange={e=>setF({...f,note:e.target.value})}/></Form><button className="save" onClick={()=>{p.insert('appuntamenti',f,p.setAppuntamenti,'appuntamenti');setF(emptyApp)}}><Save size={16}/>Salva appuntamento</button><Table h={['Cliente','Telefono','Data','Indirizzo','Stato','']} r={p.appuntamenti.map(a=>[a.cliente,a.telefono,a.data_appuntamento,a.indirizzo,a.stato,<button className="danger" onClick={()=>p.remove('appuntamenti',a.id,p.setAppuntamenti,'appuntamenti')}><Trash2 size={14}/></button>])}/></Section>}
-function Rapportini(p){const [f,setF]=useState(emptyRap);return <Section title="Rapportini giornalieri"><Form>{inp('Utente','utente',f,setF)}{inp('Titolo attività','titolo',f,setF)}{inp('Data','data_rapportino',f,setF,'date')}<textarea placeholder="Descrizione lavoro svolto" value={f.descrizione} onChange={e=>setF({...f,descrizione:e.target.value})}/></Form><button className="save" onClick={()=>{p.insert('rapportini',f,p.setRapportini,'rapportini');setF(emptyRap)}}><Save size={16}/>Salva rapportino</button><Table h={['Utente','Titolo','Data','Descrizione','']} r={p.rapportini.map(r=>[r.utente,r.titolo,r.data_rapportino,r.descrizione,<button className="danger" onClick={()=>p.remove('rapportini',r.id,p.setRapportini,'rapportini')}><Trash2 size={14}/></button>])}/></Section>}
-function Archivio(p){const all=[...p.clienti.map(x=>['Cliente',`${x.nome||''} ${x.cognome||''}`,x.telefono]),...p.commesse.map(x=>['Commessa',x.titolo,x.stato]),...p.prodotti.map(x=>['Prodotto',productTypes[x.categoria]||x.categoria,x.note]),...p.appuntamenti.map(x=>['Appuntamento',x.cliente,x.data_appuntamento]),...p.rapportini.map(x=>['Rapportino',x.titolo,x.utente])].filter(x=>contains(x,p.query));return <Section title="Archivio generale"><SearchBox query={p.query} setQuery={p.setQuery}/><Table h={['Tipo','Oggetto','Note']} r={all}/></Section>}
-function Report(p){return <main className="report-page"><header className="report-head">{LOGO_DATA&&<img src={LOGO_DATA}/>}<div><h1><span>SOS</span> INFISSI</h1><h2>REPORT COMMESSE</h2><p>Gli esperti della rimozione del vecchio telaio</p></div></header><h3>Commesse</h3><Table h={['Titolo','Stato','Tecnico','Data']} r={p.commesse.map(c=>[c.titolo,c.stato,c.tecnico,c.data_sopralluogo])}/><h3>Prodotti</h3><Table h={['Categoria','L','H','Colore','Note']} r={p.prodotti.map(pr=>[productTypes[pr.categoria]||pr.categoria,pr.larghezza,pr.altezza,pr.colore,pr.note])}/></main>}
-function Panel({title,query,setQuery}){return <div className="panel-head"><h2>{title}</h2><SearchBox query={query} setQuery={setQuery}/></div>}
-function Table({h,r}){return <div className="table-wrap"><table><thead><tr>{h.map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{r.length===0?<tr><td colSpan={h.length}>Nessun dato presente</td></tr>:r.map((row,i)=><tr key={i}>{row.map((c,j)=><td key={j}>{c}</td>)}</tr>)}</tbody></table></div>}
+
+function Dashboard({clienti,commesse,setView}){
+  return <><div className="stats"><Card n={clienti.length} t="Clienti cloud"/><Card n={commesse.length} t="Commesse cloud"/><Card n="LIVE" t="Sync Supabase"/><Card n="OK" t="Multi dispositivo"/></div>
+  <section className="panel"><h2>Test veloce multi dispositivo</h2><p>Crea un cliente dal telefono, poi premi Sincronizza sul PC: deve comparire.</p><div className="quick"><button onClick={()=>setView('clienti')}><Plus/>Aggiungi cliente</button><button onClick={()=>setView('commesse')}><Plus/>Nuova commessa</button><button onClick={()=>window.print()}><Printer/>Stampa report</button></div></section></>
+}
+function Card({n,t}){return <div className="card"><b>{n}</b><span>{t}</span></div>}
+function SearchBox({query,setQuery}){return <div className="search"><Search/><input placeholder="Cerca..." value={query} onChange={e=>setQuery(e.target.value)}/></div>}
+
+function Clienti({form,setForm,clienti,save,del,query,setQuery}){
+  return <section className="panel"><h1>Clienti</h1><div className="form">
+    {['nome','cognome','telefono','email','indirizzo','citta'].map(k=><input key={k} placeholder={k.toUpperCase()} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})}/>)}
+    <textarea placeholder="NOTE" value={form.note} onChange={e=>setForm({...form,note:e.target.value})}/>
+  </div><button className="save" onClick={save}><Save/>Salva cliente in cloud</button>
+  <div className="head"><h2>Elenco clienti</h2><SearchBox query={query} setQuery={setQuery}/></div>
+  <Table heads={['Nome','Telefono','Email','Indirizzo','']} rows={clienti.map(c=>[`${c.nome||''} ${c.cognome||''}`,c.telefono,c.email,`${c.indirizzo||''} ${c.citta||''}`,<button className="danger" onClick={()=>del(c.id)}><Trash2/></button>])}/></section>
+}
+
+function Commesse({form,setForm,clienti,commesse,save,del,nomeCliente,query,setQuery}){
+  return <section className="panel"><h1>Commesse</h1><div className="form">
+    <select value={form.cliente_id} onChange={e=>setForm({...form,cliente_id:e.target.value})}><option value="">Cliente collegato</option>{clienti.map(c=><option key={c.id} value={c.id}>{c.nome} {c.cognome} — {c.telefono}</option>)}</select>
+    <input placeholder="TITOLO COMMESSA" value={form.titolo} onChange={e=>setForm({...form,titolo:e.target.value})}/>
+    <select value={form.stato} onChange={e=>setForm({...form,stato:e.target.value})}><option>in lavorazione</option><option>da preventivare</option><option>preventivo inviato</option><option>ordine confermato</option><option>completata</option></select>
+    <input type="date" value={form.data_sopralluogo} onChange={e=>setForm({...form,data_sopralluogo:e.target.value})}/>
+    <input placeholder="TECNICO" value={form.tecnico} onChange={e=>setForm({...form,tecnico:e.target.value})}/>
+    <textarea placeholder="NOTE" value={form.note} onChange={e=>setForm({...form,note:e.target.value})}/>
+  </div><button className="save" onClick={save}><Save/>Salva commessa in cloud</button>
+  <div className="head"><h2>Elenco commesse</h2><SearchBox query={query} setQuery={setQuery}/></div>
+  <Table heads={['Cliente','Titolo','Stato','Tecnico','Data','']} rows={commesse.map(c=>[nomeCliente(c.cliente_id),c.titolo,c.stato,c.tecnico,c.data_sopralluogo,<button className="danger" onClick={()=>del(c.id)}><Trash2/></button>])}/></section>
+}
+
+function Archivio({clienti,commesse,nomeCliente}){return <section className="panel"><h1>Archivio cloud</h1><h2>Clienti</h2><Table heads={['Nome','Telefono','Indirizzo']} rows={clienti.map(c=>[`${c.nome||''} ${c.cognome||''}`,c.telefono,`${c.indirizzo||''} ${c.citta||''}`])}/><h2>Commesse</h2><Table heads={['Cliente','Titolo','Stato','Tecnico']} rows={commesse.map(c=>[nomeCliente(c.cliente_id),c.titolo,c.stato,c.tecnico])}/></section>}
+function Report({clienti,commesse,nomeCliente}){return <section className="report"><div className="reportHead">{LOGO_DATA&&<img src={LOGO_DATA}/>}<div><h1><span>SOS</span> INFISSI</h1><h2>REPORT CLIENTI E COMMESSE</h2></div></div><h2>Clienti</h2><Table heads={['Nome','Telefono','Email','Indirizzo']} rows={clienti.map(c=>[`${c.nome||''} ${c.cognome||''}`,c.telefono,c.email,`${c.indirizzo||''} ${c.citta||''}`])}/><h2>Commesse</h2><Table heads={['Cliente','Titolo','Stato','Tecnico','Data']} rows={commesse.map(c=>[nomeCliente(c.cliente_id),c.titolo,c.stato,c.tecnico,c.data_sopralluogo])}/></section>}
+function Table({heads,rows}){return <div className="table"><table><thead><tr>{heads.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={i}>{r.map((c,j)=><td key={j}>{c}</td>)}</tr>):<tr><td colSpan={heads.length}>Nessun dato presente</td></tr>}</tbody></table></div>}
