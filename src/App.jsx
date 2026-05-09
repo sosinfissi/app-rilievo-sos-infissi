@@ -55,6 +55,58 @@ export default function App(){
   }
 
   async function salvaCommessa(){
+
+  if(!commessaForm.titolo){
+    alert('Inserisci titolo commessa')
+    return
+  }
+
+  let clienteId = commessaForm.cliente_id
+    ? Number(commessaForm.cliente_id)
+    : null
+
+  if(!clienteId && (commessaForm.cliente_nome || commessaForm.cliente_telefono)){
+
+    const {data: nuovoCliente, error: errCliente} =
+      await supabase
+      .from('clienti')
+      .insert({
+        nome: commessaForm.cliente_nome || null,
+        cognome: commessaForm.cliente_cognome || null,
+        telefono: commessaForm.cliente_telefono || null,
+        indirizzo: commessaForm.cliente_indirizzo || null
+      })
+      .select()
+      .single()
+
+    if(errCliente){
+      alert('Errore creazione cliente: ' + errCliente.message)
+      return
+    }
+
+    clienteId = nuovoCliente.id
+  }
+
+  const {error} = await supabase
+    .from('commesse')
+    .insert({
+      cliente_id: clienteId,
+      titolo: commessaForm.titolo,
+      stato: commessaForm.stato,
+      data_sopralluogo: commessaForm.data_sopralluogo || null,
+      tecnico: commessaForm.tecnico || null,
+      note: commessaForm.note || null
+    })
+
+  if(error){
+    alert('Errore commessa: ' + error.message)
+    return
+  }
+
+  setCommessaForm(emptyCommessa)
+  await sync()
+  setView('commesse')
+}
     if(!commessaForm.titolo){alert('Inserisci titolo commessa'); return}
     const {error}=await supabase.from('commesse').insert({
       cliente_id:commessaForm.cliente_id?Number(commessaForm.cliente_id):null,
@@ -116,8 +168,15 @@ function Clienti({form,setForm,clienti,save,del,query,setQuery}){
 
 function Commesse({form,setForm,clienti,commesse,save,del,nomeCliente,query,setQuery}){
   return <section className="panel"><h1>Commesse</h1><div className="form">
-    <select value={form.cliente_id} onChange={e=>setForm({...form,cliente_id:e.target.value})}><option value="">Cliente collegato</option>{clienti.map(c=><option key={c.id} value={c.id}>{c.nome} {c.cognome} — {c.telefono}</option>)}</select>
-    <input placeholder="TITOLO COMMESSA" value={form.titolo} onChange={e=>setForm({...form,titolo:e.target.value})}/>
+    <select value={form.cliente_id} onChange={e=>setForm({...form,cliente_id:e.target.value})}><option value="">Cliente collegato</option>{clienti.map(c=><option key={c.id} value={c.id}>{c.nome} {c.cognome} — {c.telefono}
+    <input placeholder="NOME CLIENTE" value={form.cliente_nome} onChange={e=>setForm({...form,cliente_nome:e.target.value})}/>
+
+<input placeholder="COGNOME CLIENTE" value={form.cliente_cognome} onChange={e=>setForm({...form,cliente_cognome:e.target.value})}/>
+
+<input placeholder="TELEFONO CLIENTE" value={form.cliente_telefono} onChange={e=>setForm({...form,cliente_telefono:e.target.value})}/>
+
+<input placeholder="INDIRIZZO CLIENTE" value={form.cliente_indirizzo} onChange={e=>setForm({...form,cliente_indirizzo:e.target.value})}/>
+      <input placeholder="TITOLO COMMESSA" value={form.titolo} onChange={e=>setForm({...form,titolo:e.target.value})}/>
     <select value={form.stato} onChange={e=>setForm({...form,stato:e.target.value})}><option>in lavorazione</option><option>da preventivare</option><option>preventivo inviato</option><option>ordine confermato</option><option>completata</option></select>
     <input type="date" value={form.data_sopralluogo} onChange={e=>setForm({...form,data_sopralluogo:e.target.value})}/>
     <input placeholder="TECNICO" value={form.tecnico} onChange={e=>setForm({...form,tecnico:e.target.value})}/>
