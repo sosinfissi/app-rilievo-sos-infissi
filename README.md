@@ -1,3 +1,3 @@
-# SOS INFISSI Unificata
+# SOS INFISSI Unificata 2
 
-Grafica bella + foglio rilievo + clienti + commesse cloud.
+Riapertura commesse, multi-prodotto, layout corretto.
